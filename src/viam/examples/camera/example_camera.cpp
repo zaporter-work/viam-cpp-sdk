@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <vector>
 
+#include <viam/sdk/common/exception.hpp>
 #include <viam/sdk/components/camera/camera.hpp>
 #include <viam/sdk/components/camera/client.hpp>
 #include <viam/sdk/robot/client.hpp>
@@ -15,6 +16,7 @@ int main() {
     using std::endl;
     namespace vs = ::viam::sdk;
     try {
+        throw InsecureConnectionException("hi", "how", "are", "you");
         // If you want to connect to a remote robot, this should be the url of the robot
         // Ex: xxx.xxx.viam.cloud
         std::string robot_address("localhost:8080");
