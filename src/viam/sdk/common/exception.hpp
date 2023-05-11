@@ -5,70 +5,76 @@
 #include <stdexcept>
 #include <string>
 
-template <typename... Args>
-std::string concat_varargs(Args const&... args) {
-    std::ostringstream stream;
-    using List = int[];
-    (void)List{0, ((void)(stream << args << " "), 0)...};
+namespace viam {
+namespace sdk {
 
-    return stream.str();
-}
-
-enum ViamErrorCode {
-    GENERIC = 0,
-    PERMISSION_DENIED = 1,
-    DUPLICATE_RESOURCE = 2,
-    RESOURCE_NOT_FOUND = 3,
-    NOT_SUPPORTED = 4,
-    VALIDATION = 5,
-    CONNECTION = 6
+enum class ViamErrorCode : unsigned int {
+    generic = 0,
+    permission_denied = 1,
+    duplicate_resource = 2,
+    unsupported = 3,
+    validation = 4,
+    connection = 5
 };
-
-grpc_status_code viam_error_to_grpc_status(ViamErrorCode code) {
-    return grpc_status_code::GRPC_STATUS_UNKNOWN;
-}
-ViamErrorCode grpc_status_to_viam_error_code(grpc_status_code code) {
-    return ViamErrorCode::GENERIC;
-}
 
 class ViamException : public std::runtime_error {
    public:
-    ViamErrorCode error_code;
     template <typename... Args>
-    ViamException(Args const&... what)
-        : std::runtime_error("ViamException: " + concat_varargs(what...)){};
+    explicit ViamException(Args const&... what)
+        : std::runtime_error("ViamException: " + concat_exception_varargs(what...)),
+          _error_code(ViamErrorCode::generic){};
 
     template <typename... Args>
-    ViamException(const std::string& type, Args const&... what)
-        : std::runtime_error("ViamException(" + type + "): " + concat_varargs(what...)){};
+    explicit ViamException(const std::string& type, const ViamErrorCode& code, Args const&... what)
+        : std::runtime_error("ViamException(" + type + "): " + concat_exception_varargs(what...)),
+          _error_code(code){};
 
-    static ViamException from_grpc_status(grpc_status_code code) {
-        return ViamException(code);
+    virtual ~ViamException() = default;
+
+    [[nodiscard]] static ViamException from_grpc_status(grpc_status_code code);
+    [[nodiscard]] static ViamException from_viam_error_code(ViamErrorCode code);
+
+    ViamErrorCode get_error_code() const;
+
+   private:
+    ViamErrorCode _error_code;
+
+    // Will be selected if no args are passed
+    // PRNote: This could be made constexpr const char*
+    std::string concat_exception_varargs() {
+        return "Unknown";
     }
-    static ViamException from_viam_error_code(ViamErrorCode code) {
-        // TODO
-        return ViamException(code);
+    template <typename... Args>
+    std::string concat_exception_varargs(Args const&... args) {
+        std::ostringstream stream;
+        using List = int[];
+        (void)List{0, ((void)(stream << args << " "), 0)...};
+        return stream.str();
     }
 };
 
 class PermissionDeniedException : public ViamException {
    public:
     template <typename... Args>
-    PermissionDeniedException(Args const&... what) : ViamException("PermissionDenied", what...){};
+    explicit PermissionDeniedException(Args const&... what)
+        : ViamException("PermissionDenied", ViamErrorCode::permission_denied, what...){};
 };
 
 class DuplicateResourceException : public ViamException {
    public:
-    DuplicateResourceException(const std::string& what...)
-        : ViamException("DuplicateResource", what){};
+    template <typename... Args>
+    explicit DuplicateResourceException(Args const&... what)
+        : ViamException("DuplicateResource", ViamErrorCode::duplicate_resource, what...){};
 };
 
 // TODO
 class ResourceNotFoundException : public ViamException {};
 
-class NotSupportedException : public ViamException {};
+class UnsupportedException : public ViamException {};
 
 class ValidationException : public ViamException {};
 
 // Python calls this a ViamGRPCError
 class ConnectionException : public ViamException {};
+}  // namespace sdk
+}  // namespace viam
